@@ -1,0 +1,40 @@
+1. Excluir as colunas  ['COGS', 'finished_prod', 'net_dom_sales', 'net_exp_sales', 'wages', 'D']
+
+2. Excluir o ano de 2016
+
+3. Tratar os missing values da variável 'sales': excluir as empresas do dataset as empresas que tenham pelo menos 1 missing value em um dos anos dos dados
+Como os missing values representam menos de 3% do total da base e não é possível inferir se a ausência do dados representa um descontinuidade dos negócios da empresa ou se simplesmente a empresa não consta na base de dados naquele ano, serão excluídas as empresas do dataset as empresas que tenham pelo menos 1 missing value em um dos anos dos dados. Assim, evita-se possíveis erros de classificação (se a empresa estava operando ou não nos próximos dois anos em relação ao ano de referência) que poderiam ocorrer substituindo os missing values por zero ou pela média.
+
+4. Para 'sales", considerar os valores negativos como zero.
+Serão considerados como zero os valores negativos, pois vendas com valores anuais totais negativos em empresas em operação pode representar algum erro de apropriação, uma vez que valores negativos de vendas em um mês podem representar a restituição de uma compra. Além disso, há também poucos valores negativos. Logo, substituir esses missing values por zero não tratará prejuízo ou viés para o modelo.
+
+5. Criar a variavel resposta para o modelo que vai estimar se a empresa irá falir em até 2 anos a partir dos dados atuais.
+
+6. Tratar os missing values, seguindo o critério abaixo:
+- Considerar ZERO os missing values das variáveis "extra_exp", "extra_inc", "extra_profit_loss". Como são gastos de natureza eventual, os missing values podem representar que não houve esse tipo de dado para o ano em questão;
+- Subsitutir pela média da empresa as variáveis numéricas: "amort", "curr_assets", "curr_liab", "fixed_assets", "inc_bef_tax", "intang_assets", "inventories", "liq_assets", "material_exp", "personnel_exp", "tang_assets", "labor_avg". São variáveis de natureza contábil e que tem um peso importante para explicar a saúde financeira da empresa. Logo, substituir pela média da empresa mantém a distribuição dos dados intacta e utilizar por ZERO ou excluir os dados pode prejudicar a estimativa do modelo
+- Subsitutir pela média da empresa as variáveis: "urban_m", "region_m", "founded_date", São variáveis não numéricas que podem ajudar na construção do modelo, pois podem ter a priori relevância na explicação da variável resposta.
+
+7. Filtrar o ano de 2012
+
+8. Tratar valores negativos das variáveis abaixo, substituindo esses dados por zero.
+"amort, curr_assets", "curr_liab", "extra_exp", "extra_inc", "fixed_assets", "inc_bef_tax", "intang_assets", "inventories", "material_exp", "personnel_exp", "sales", "labor_avg"
+Assim como em 'sales', são variáveis cujo valor de negativo total são muito raro.
+As variáveis númericas extra_profit_loss, liq_assets, profit_loss_year, share_eq, subscribed_cap, tang_assets podem conceitualmente ter valores negativos com maior frequência
+
+9. Criar coluna com capital circulante liquido
+
+10. Criar coluna com a idade da empresa (considerar a coluna founded_date, já que a coluna founded_year tem muitos missing values)
+
+11. Criar a coluna de porte da empresa (critério: pequenas < 50 mil e médias e grandes > 50 mil)
+
+12. Filtrar empresas abaixo de 10 MM e acima de 1000
+
+13. Excluir as seguintes colunas:
+- variáveis com datas ou anos 'begin', 'end', 'year', 'founded_year', 'exit_year', 'exit_date'. Os modelos a serem aplicados não suportam esse tipo de variável.
+- dados sobre o balanço 'balsheet_flag', 'balsheet_length', 'balsheet_notfullyear'. Número relevante de missing values.
+- Informações sobre os CEO: "ceo_count", "foreign", "female", "birth_year", "inoffice_days", "gender", "origin". Podem causar viés inesperado no modelo, uma vez que não há evidências que essas variáveis influenciam a gestão de uma empresa
+- Informações sobre o setor de atuação da empresa: 'nace_main', 'ind2', 'ind'. Como serão utilizados somentes dados somente de 2012 para a construção do modelo, pode-se criar a falsa correlação que uma empresa pode falir por atuar num determinado setor que, por questões exogênas, pode apresentar melhores condições para uma empresa prosperar do que outros. Caso o ambiente econômico de um setor mude em relação ao ano de 2012, isso pode aumentar o erro do modelo.
+- As variáveis "curr_assets", "curr_liab", "urban_m", "region_m", "labor_avg" terão a sua relevância para o modelo avaliada durante a fase de modelagem, uma vez que não há certeza sobre o poder de explicação das mesmas.
+
+

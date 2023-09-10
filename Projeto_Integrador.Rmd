@@ -38,14 +38,8 @@ Para tal, serão utilizados os modelos de regressão logística, RIDGE/LASSO, fl
 O primeiro passo é importar os dados. Serão removidos os ID das empresas (comp_id), pois esses dados não serão utilizados na modelagem:
 
 ```{r}
-dados <- read_csv("C:/Users/Flavio/Dropbox/My PC (LAPTOP-FVTATBSD)/Documents/Pós Insper Data Science/Projeto Integrador AEM I e CCD/dados_bisnode.csv", show_col_types = FALSE) %>% 
-  dplyr::select(-comp_id)
-```
-
-
-# ATENÇÃO: usei o código abaixo para excluir os missing values, pois na base que usei havia alguns. Assim, essa linha deve ser deconsiderada no trabalho final.
-```{r}
-dados <- na.omit(dados)
+dados <- read_csv("C:/Users/Flavio/Dropbox/My PC (LAPTOP-FVTATBSD)/Documents/Pós Insper Data Science/Projeto Integrador AEM I e CCD/df.csv", show_col_types = FALSE) %>% 
+  dplyr::select(-comp_id, -curr_idx_liq, -log_sales)#dropando curr_idx_liq e log_sales
 ```
 
 
@@ -88,7 +82,7 @@ teste  <- dados[-idx,]
 
 Agora será estimado o modelo de regressão logística:
 ```{r}
-log <- glm(will_close ~ ., data = treino, family = "binomial")
+log <- glm(will_close ~ ., data = treino, family = 'binomial')
 summary(log)
 ```
 
@@ -352,9 +346,10 @@ prob_log_stepwise <- predict(log_stepwise, newdata = teste_stepwise, type = "res
 E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística com stepwise e a respectiva classe observada:
 
 ```{r}
-desempenho <- tibble(prob = prob_log_stepwise, 
+desempenho <- desempenho %>% 
+  bind_rows(tibble(prob = prob_log_stepwise, 
                    classes = teste_stepwise$will_close, 
-                   metodo = "logística stepwise")
+                   metodo = "logística stepwise"))
 ```
 
 ### Regressão Logística com Número de Variáveis Reduzido
@@ -382,9 +377,10 @@ prob_log_reduz <- predict(log_reduz, newdata = teste_reduz, type = "response")
 E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística reduzida e a respectiva classe observada:
 
 ```{r}
-desempenho <- tibble(prob = prob_log_reduz, 
+desempenho <- desempenho %>% 
+  bind_rows( tibble(prob = prob_log_reduz, 
                    classes = teste_reduz$will_close, 
-                   metodo = "logística reduzida")
+                   metodo = "logística reduzida"))
 ```
 
 Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
@@ -401,24 +397,24 @@ Assim, vamos criar dividir o dataset em 3 subgrupos (equenas, médias e grandes 
 
 ```{r}
 dados_pequena <- dados %>%
-  filter(XXX == 'Pequena') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como pequena
-dados_pequena <- subset(dados_pequena, select = -c()) #incluir o nome da coluna que possui os dados de porte para excluí-la
+  filter(comp_size == 'Pequena') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como pequena
+dados_pequena <- subset(dados_pequena, select = -c(comp_size)) #incluir o nome da coluna que possui os dados de porte para excluí-la
 
 dados_media <- dados %>%
-  filter(XXX == 'Media') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como media
-dados_media<- subset(dados_media, select = -c()) #incluir o nome da coluna que possui os dados de porte para excluí-la
+  filter(comp_size == 'Média') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como media
+dados_media<- subset(dados_media, select = -c(comp_size)) #incluir o nome da coluna que possui os dados de porte para excluí-la
 
 dados_grande <- dados %>%
-  filter(XXX == 'Grande') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como grande
-dados_grande <- subset(dados_grande, select = -c()) #incluir o nome da coluna que possui os dados de porte para excluí-la
+  filter(comp_size == 'Grande') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como grande
+dados_grande <- subset(dados_grande, select = -c(comp_size)) #incluir o nome da coluna que possui os dados de porte para excluí-la
 ```
 
 
 Criando os datasets de treino e teste para cada um dos portes:
 ```{r}
-idx_pequena <- sample(nrow(dados_pequena), size = .80 * nrow(dados), replace = FALSE)
-idx_media <- sample(nrow(dados_media), size = .80 * nrow(dados), replace = FALSE)
-idx_grande <- sample(nrow(dados_grande), size = .80 * nrow(dados), replace = FALSE)
+idx_pequena <- sample(nrow(dados_pequena), size = .80 * nrow(dados_pequena ), replace = FALSE)
+idx_media <- sample(nrow(dados_media), size = .80 * nrow(dados_media), replace = FALSE)
+idx_grande <- sample(nrow(dados_grande), size = .80 * nrow(dados_grande), replace = FALSE)
 
 treino_pequena <- dados[idx_pequena,]
 teste_pequena <- dados[-idx_pequena,]
@@ -449,9 +445,10 @@ prob_log_pequena <- predict(log_pequena, newdata = teste_pequena, type = "respon
 E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística para as empresas de pequeno porte e a respectiva classe observada:
 
 ```{r}
-desempenho <- tibble(prob = prob_log_pequena, 
+desempenho <- desempenho %>% 
+  bind_rows(tibble(prob = prob_log_pequena, 
                    classes = teste_pequena$will_close, 
-                   metodo = "logística pequeno porte")
+                   metodo = "logística pequeno porte"))
 ```
 
 Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
@@ -473,15 +470,16 @@ summary(log_media)
 Aplicando o modelo de previsão para as empresas de pequeno porte nos dados de teste para estimar as probabilidades:
 
 ```{r}
-prob_log_media <- predict(log_media, newdata = teste_pequena, type = "response")
+prob_log_media <- predict(log_media, newdata = teste_media, type = "response")
 ```
 
 E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística para as empresas de pequeno porte e a respectiva classe observada:
 
 ```{r}
-desempenho <- tibble(prob = prob_log_media, 
+desempenho <- desempenho %>% 
+  bind_rows(tibble(prob = prob_log_media, 
                    classes = teste_media$will_close, 
-                   metodo = "logística pequeno porte")
+                   metodo = "logística medio porte")) 
 ```
 
 Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
@@ -508,9 +506,10 @@ prob_log_grande <- predict(log_grande, newdata = teste_grande, type = "response"
 E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística para as empresas de pequeno porte e a respectiva classe observada:
 
 ```{r}
-desempenho <- tibble(prob = prob_log_grande, 
+desempenho <- desempenho %>% 
+  bind_rows( tibble(prob = prob_log_grande, 
                    classes = teste_grande$will_close, 
-                   metodo = "logística pequeno porte")
+                   metodo = "logística grande porte")) 
 ```
 
 Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:

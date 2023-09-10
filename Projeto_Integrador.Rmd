@@ -195,13 +195,13 @@ vip(lasso, mapping = aes(fill = Sign)) + labs(title = "LASSO")
 Agora, será criado e testado o modelo de floresta aleatória com 500 árvores e com todas as variáveis:
 
 ```{r}
-rf <- ranger(will_close ~ ., probability = TRUE, data = dados)
+rf <- ranger(will_close ~ ., probability = TRUE, data = treino)
 ```
 
 Para essa floresta aleatória com 500 árvores e com todas as variáveis, vamos fazer a previsão a partir dos dados de teste:
 
 ```{r}
-prob_rf <- predict(rf, teste)$predictions[,1]
+prob_rf <- predict(rf, teste)$predictions[,2]
 ```
 
 E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
@@ -222,10 +222,10 @@ vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", data 
 Testando de 1 a 500 de árvores e o numero de variaveis por split:
 
 ```{r}
-result_arvores <- crossing(mtry = c(2, 4, 6, 8, 10),
+result_arvores <- crossing(mtry = c(2, 4, 8, 12, 16, 20, 24),
                        n_arvores = c(1:10, seq(10, 500, 10)))
 itera <- function(mtry, n_arvores) {
-  rf_itera <- ranger(will_close ~ ., probability = TRUE, num.trees = n_arvores, mtry = mtry, data = dados)
+  rf_itera <- ranger(will_close ~ ., probability = TRUE, num.trees = n_arvores, mtry = mtry, data = treino)
   return(rf_itera$prediction.error)
 }
 result_arvores <- result_arvores %>%
@@ -250,13 +250,14 @@ n_arvores_otimo <- floresta_otima$n_arvores # variaveis por split
 Criando e modelo de floresta aleatória ótima:
 
 ```{r}
-rf_otima <- ranger(will_close ~ ., probability = TRUE, num.trees = n_arvores_otimo, mtry = mtry_otimo, data = dados)
+rf_otima <- ranger(will_close ~ ., probability = TRUE, num.trees = n_arvores_otimo,
+                   mtry = mtry_otimo, data = treino)
 ```
 
 Para essa floresta aleatória com 500 árvores e com todas as variáveis, vamos fazer a previsão a partir dos dados de teste:
 
 ```{r}
-prob_rf_otima <- predict(rf_otima, teste)$predictions[,1]
+prob_rf_otima <- predict(rf_otima, teste)$predictions[,2]
 ```
 
 E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
@@ -271,7 +272,7 @@ desempenho <- desempenho %>%
 Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo de floresta aleatória otimizada:
 
 ```{r}
-vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", num.trees = n_arvores_otimo, mtry = mtry_otimo, data = dados), 
+vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", num.trees = n_arvores_otimo, mtry = mtry_otimo, data = treino), 
     aesthetics = list(fill = "lightblue")) + labs(title = "Floresta Aleatoria Ótima")
 ```
 
@@ -352,43 +353,6 @@ desempenho <- desempenho %>%
                    metodo = "logística stepwise"))
 ```
 
-### Regressão Logística com Número de Variáveis Reduzido
-
-Conforme já descrito por meio da matriz de correlação na etapa de análise exploratória dos dados, há algumas variáveis que são correlacionadas. Assim, vamos excluir as variáveis que tem alta correlação com outras e estimar o modelo de regressão logística. O primeiro passo é criar um dataset sem essas variáveis:
-
-```{r}
-treino_reduz <- subset(treino, select = -c()) #inserir as variáveis a serem excluídas
-teste_reduz <- subset(teste, select = -c()) #inserir as variáveis a serem excluídas
-```
-
-Vamos estimar o modelo de regressão logística com variáveis reduzidas:
-
-```{r}
-log_reduz <- glm(will_close ~ ., data = treino_reduz, family = "binomial")
-summary(log_reduz)
-```
-
-Aplicando o modelo de previsão nos dados de teste para estimar as probabilidades:
-
-```{r}
-prob_log_reduz <- predict(log_reduz, newdata = teste_reduz, type = "response")
-```
-
-E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística reduzida e a respectiva classe observada:
-
-```{r}
-desempenho <- desempenho %>% 
-  bind_rows( tibble(prob = prob_log_reduz, 
-                   classes = teste_reduz$will_close, 
-                   metodo = "logística reduzida"))
-```
-
-Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
-
-```{r}
-vip(log_reduz, mapping = aes(fill = Sign)) + labs(title = "Modelo de Regressão Logística")
-```
-
 
 ### Regressão Logística por Porte
 
@@ -416,14 +380,14 @@ idx_pequena <- sample(nrow(dados_pequena), size = .80 * nrow(dados_pequena ), re
 idx_media <- sample(nrow(dados_media), size = .80 * nrow(dados_media), replace = FALSE)
 idx_grande <- sample(nrow(dados_grande), size = .80 * nrow(dados_grande), replace = FALSE)
 
-treino_pequena <- dados[idx_pequena,]
-teste_pequena <- dados[-idx_pequena,]
+treino_pequena <- dados_pequena[idx_pequena,]
+teste_pequena <- dados_pequena[-idx_pequena,]
 
-treino_media <- dados[idx_media,]
-teste_media  <- dados[-idx_media,]
+treino_media <- dados_media[idx_media,]
+teste_media  <- dados_media[-idx_media,]
 
-treino_grande <- dados[idx_grande,]
-teste_grande  <- dados[-idx_grande,]
+treino_grande <- dados_grande[idx_grande,]
+teste_grande  <- dados_grande[-idx_grande,]
 
 ```
 

@@ -29,21 +29,23 @@ library(ranger)
 library(pROC)
 ```
 
-## Objetivo
+## Etapa de Modelagem - Introdução
 
-O objetivo desse trabalho é qual é o modelo que melhor prevê se uma empresa irá falir em até dois anos. A variável resposta desse processo de modelagem é will_close: 1 significa que a empresa fechará em até 2 anos e ZERO (0) implica em não fechamento nesse mesmo período.
+O objetivo dessa parte do Projeto Integrador é desenvolver um modelo previtivo para indicar se uma empresa irá falir em até dois anos a partir da avaliação de cinco classes de modelos: regressão logística, RIDGE, LASSO, floresta aleatória e Boosting. O pipeline de pré-processamento dos dados foi feito em Python. Nessa etapa de pré-processamento, foi criada a variável chamada will_close, que é a variável resposta desse processo de modelagem. Nela, o valor "1" significa que a empresa fechará em até 2 anos e ZERO (0) que a empresa não fechou nesse mesmo período de dois anos após 2012 (ano de referência para a modelagem).
 
-Para tal, serão utilizados os modelos de regressão logística, RIDGE/LASSO, floresta aleatória e Boosting.
+Além dos 5 modelos listados acima, serão utilizadas outras abordagens, como implementar o método de seleção de subconjuntos para as variáveis preditoras (stepwise) e testar o desempenho para modelagem por porte da empresa (pequena, média e grande), a ser feito de forma separada.
 
-O primeiro passo é importar os dados. Serão removidos os ID das empresas (comp_id), pois esses dados não serão utilizados na modelagem:
+Para avaliar o desempenho de cada um dos modelos de classificação estimados, será utilizado a área sob a curva ROC (AUC), que mede a probabilidade de uma observação de evento ocorrer (no caso, se a empresa irá fechar) ter uma probabilidade maior do que uma observação do grupo de referência. Isto é, qual é o percentual de classificação correta do modelo em questão. Logo, um valor de AUC de um dado modelo igual 1 indica um desempenho de 100% na classificação e um valor de 0,5 significa que o modelo não é capaz de classificar de forma melhor do que uma escolha num processo aleatório.
+
+O primeiro passo é importar os dados. Serão removidos os ID das empresas (comp_id), pois essas informações não serão utilizados na modelagem:
 
 ```{r}
 dados <- read_csv("C:/Users/Flavio/Dropbox/My PC (LAPTOP-FVTATBSD)/Documents/Pós Insper Data Science/Projeto Integrador AEM I e CCD/df.csv", show_col_types = FALSE) %>% 
-  dplyr::select(-comp_id, -curr_idx_liq, -log_sales)#dropando curr_idx_liq e log_sales
+  dplyr::select(-comp_id, -revenue, -log_sales, -curr_idx_liq)
 ```
 
 
-O próximo passo é verificar se os dados foram migrados corretamente. 
+A próxima etapa é verificar se os dados foram migrados corretamente. 
 ```{r}
 skim(dados)
 ```
@@ -58,7 +60,7 @@ dados <- dados %>%
 
 ## Análise dos Modelos
 
-Nesse item serão construídos e analisados os modelos para prever os preços dos alugueis. São eles:
+Nesse passo, vamos construir os modelos para predizer a variável resposta will_close (se a empresa irá falir em até dois anos), a saber:
 
 - Regressão Logísitica
 - Rigde
@@ -80,19 +82,20 @@ teste  <- dados[-idx,]
 
 ### Regressão Logística
 
-Agora será estimado o modelo de regressão logística:
+O primeiro modelo a ser estimado é o de regressão logística:
 ```{r}
 log <- glm(will_close ~ ., data = treino, family = 'binomial')
 summary(log)
 ```
+A aplicação da função glm do R gerou o alerta ("warning") a seguir: "Warning: glm.fit: probabilidades ajustadas numericamente 0 ou 1 ocorreu". Esse alerta pode ser causado por outliers. Para tentar  mitigar esse problema, vamos posteriormente dividir o dataset de acordo com o porte da empresa e estimar o modelo de regressão logística para cada um dos porte. Por ora, vamos continuar na estimativa e avaliação dos 5 modelos descritos acima.
 
-Aplicando o modelo de previsão nos dados de teste para estimar as probabilidades:
+Agora, vamos aplicar o modelo de previsão nos dados de teste para estimar as probabilidades:
 
 ```{r}
 prob_log <- predict(log, newdata = teste, type = "response")
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística e a respectiva classe observada:
+E armazenar em um tibble os resultados das probabilidades obtidas pela regressão logística e a respectiva classe observada:
 
 ```{r}
 desempenho <- tibble(prob = prob_log, 
@@ -100,7 +103,7 @@ desempenho <- tibble(prob = prob_log,
                    metodo = "logística")
 ```
 
-Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
+Abaixo, foi plotado o gráfico com a importância de cada variável para esse modelo:
 
 ```{r}
 vip(log, mapping = aes(fill = Sign)) + labs(title = "Modelo de Regressão Logística")
@@ -108,7 +111,7 @@ vip(log, mapping = aes(fill = Sign)) + labs(title = "Modelo de Regressão Logís
 
 ### Modelo Ridge
 
-O próximo modelo a ser estimado é o Ridge. Antes, deverão ser preparadados os datasets de treinamento e teste para aplicação da função do pacote glmnet.
+O próximo modelo a ser estimado é o Ridge. Primeiro, deverão ser preparadados os datasets de treinamento e teste para aplicação da função do pacote glmnet.
 
 ```{r}
 X_treino <- model.matrix(will_close ~ ., dados)[idx,-1]
@@ -118,26 +121,26 @@ X_teste <- model.matrix(will_close ~ ., dados)[-idx,-1]
 y_teste <- dados$will_close[-idx]
 ```
 
-Criando o modelo Ridge e plotando o gráfico com os lambdas variando até 500:
+Abaixo, foi criado o modelo Ridge e plotando o gráfico com os lambdas variando até 500:
 
 ```{r}
 ridge <- glmnet(X_treino, y_treino,  alpha = 0, nlambda = 500, family = "binomial")
 plot_glmnet(ridge, lwd = 2, cex.lab = 1.3)
 ```
 
-Fazendo a validação cruzadas do modelo:
+A seguir, vamos fazer a validação cruzada do modelo:
 
 ```{r}
 cv_ridge <- cv.glmnet(X_treino, y_treino, alpha = 0, family = "binomial")
 plot(cv_ridge, cex.lab = 1.3)
 ```
-Aplicando o modelo de previsão com base no melhor lambda (menor erro) e estimando as probabilidades a partir da base de teste:
+Vamos aplicar o modelo de previsão com base no melhor lambda (menor erro), estimando as probabilidades a partir da base de teste:
 
 ```{r}
 prob_ridge <- predict(ridge, newx = X_teste, s = cv_ridge$lambda.min, type = "response")
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
+E armazenar em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
 
 ```{r}
 desempenho <- desempenho %>% 
@@ -146,7 +149,7 @@ desempenho <- desempenho %>%
                    metodo = "ridge"))
 ```
 
-Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
+Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo Rigde:
 
 ```{r}
 vip(ridge, mapping = aes(fill = Sign)) + labs(title = "Rigde")
@@ -154,27 +157,27 @@ vip(ridge, mapping = aes(fill = Sign)) + labs(title = "Rigde")
 
 ### Regressão LASSO
 
-O modelo seguinte a ser criado é o LASSO. Abaixo, foi criado o modelo LASSO e plotado o gráfico com os lambdas variando até 500:
+O modelo seguinte a ser criado é o LASSO. Assim como no modelo Ridge, foi criado o modelo LASSO e plotado o gráfico com os lambdas variando até 500:
 
 ```{r}
 lasso <- glmnet(X_treino, y_treino,  alpha = 1, nlambda = 500, family = "binomial")
 plot_glmnet(lasso, lwd = 2, cex.lab = 1.3)
 ```
 
-Fazendo a validação cruzadas do modelo:
+O próximo passo é fazer a validação cruzada do modelo:
 
 ```{r}
 cv_lasso <- cv.glmnet(X_treino, y_treino, alpha = 1, family = "binomial")
 plot(cv_lasso, cex.lab = 1.3)
 ```
 
-Aplicando o modelo de previsão com base no melhor lambda (menor erro) e estimando as probabilidades a partir da base de teste:
+Agora, será aplicado o modelo de previsão com base no melhor lambda (menor erro), estimando as probabilidades a partir da base de teste:
 
 ```{r}
 prob_lasso <- predict(lasso, newx = X_teste, s = cv_lasso$lambda.min, type = "response")
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Lasso e a respectiva classe observada:
+E armazenado em um tibble os resultados das probabilidades obtidas pelo modelo Lasso e a respectiva classe observada:
 
 ```{r}
 desempenho <- desempenho %>% 
@@ -183,7 +186,7 @@ desempenho <- desempenho %>%
                    metodo = "lasso"))
 ```
 
-Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
+Abaixo, foi plotado o gráfico com a importância de cada variável para esse modelo:
 
 ```{r}
 vip(lasso, mapping = aes(fill = Sign)) + labs(title = "LASSO")
@@ -192,7 +195,7 @@ vip(lasso, mapping = aes(fill = Sign)) + labs(title = "LASSO")
 
 ### Floresta Aleatória
 
-Agora, será criado e testado o modelo de floresta aleatória com 500 árvores e com todas as variáveis:
+O próximo modelo que será criado e testado é o de floresta aleatória com 500 árvores e com todas as variáveis:
 
 ```{r}
 rf <- ranger(will_close ~ ., probability = TRUE, data = treino)
@@ -204,7 +207,7 @@ Para essa floresta aleatória com 500 árvores e com todas as variáveis, vamos 
 prob_rf <- predict(rf, teste)$predictions[,2]
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
+E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo de floresta aleatória e a respectiva classe observada:
 
 ```{r}
 desempenho <- desempenho %>% 
@@ -219,10 +222,10 @@ Abaixo, plotamos o gráfico com a importância de cada variável para esse model
 vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", data = dados), aesthetics = list(fill = "lightblue")) + labs(title = "Floresta Aleatoria")
 ```
 
-Testando de 1 a 500 de árvores e o numero de variaveis por split:
+Agora, vamos iterar para testar o número de árvores de 1 a 500, bem como o número de variáveis por split, plotar o resultado dessa iteração:
 
 ```{r}
-result_arvores <- crossing(mtry = c(2, 4, 8, 12, 16, 20, 24),
+result_arvores <- crossing(mtry = c(2, 4, 8, 12, 16, 20, 23), #número de variáveis por split a ser testados
                        n_arvores = c(1:10, seq(10, 500, 10)))
 itera <- function(mtry, n_arvores) {
   rf_itera <- ranger(will_close ~ ., probability = TRUE, num.trees = n_arvores, mtry = mtry, data = treino)
@@ -239,7 +242,7 @@ result_arvores %>% ggplot(aes(n_arvores, erro)) +
 
 ```
 
-Encontrando a floresta ótima (número de árvores e número de variáveis por split) com o menor erro:
+A partir da iteração acima, vamos obter os dados da floresta ótima (número de árvores e número de variáveis por split) com o menor erro:
 
 ```{r}
 floresta_otima <- result_arvores %>% as_tibble() %>% filter(erro== min(erro))#Obtendo dados da floresta ótima
@@ -247,20 +250,20 @@ mtry_otimo <- floresta_otima$mtry #numero de arvores para floresta otima
 n_arvores_otimo <- floresta_otima$n_arvores # variaveis por split
 
 ```
-Criando e modelo de floresta aleatória ótima:
+E criar o modelo de floresta aleatória ótima:
 
 ```{r}
 rf_otima <- ranger(will_close ~ ., probability = TRUE, num.trees = n_arvores_otimo,
                    mtry = mtry_otimo, data = treino)
 ```
 
-Para essa floresta aleatória com 500 árvores e com todas as variáveis, vamos fazer a previsão a partir dos dados de teste:
+Para essa floresta aleatória ótima, vamos fazer a previsão a partir dos dados de teste:
 
 ```{r}
 prob_rf_otima <- predict(rf_otima, teste)$predictions[,2]
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
+E armazenar em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
 
 ```{r}
 desempenho <- desempenho %>% 
@@ -279,7 +282,7 @@ vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", num.t
 
 ### Boosting
 
-Agora, será criado e testado o modelo de Boosting com 500 árvores e taxa de aprendizagem 0,05:
+O último modelo que será criado e testado nesse ciclo de modelagem é o Boosting com 500 árvores e taxa de aprendizagem 0,05:
 
 ```{r}
 (fit_bst <- gbm(will_close ~ ., distribution = "bernoulli", n.trees = 500, 
@@ -287,7 +290,7 @@ Agora, será criado e testado o modelo de Boosting com 500 árvores e taxa de ap
 summary(fit_bst)
 ```
 
-Fazendo a validação cruzadas do modelo paa obter o número de árvores ótimo:
+O passo seguinte é fazer a validação cruzadas do modelo para obter o número de árvores ótimo:
 
 ```{r}
 fit_cv <- gbm(will_close ~ ., data = treino, cv.folds = 5, n.trees = 500, 
@@ -297,13 +300,13 @@ num_arv_boost <- gbm.perf(fit_cv, method = "cv") #obtendo a árvore ótima
 
 ```
 
-Aplicando o modelo de previsão com base na melhor quantidade de árvores (menor erro) e estimando as probabilidades a partir da base de teste:
+Aplicando o modelo de previsão com base na melhor quantidade de árvores (menor erro) e estimando as probabilidades a partir da base de teste, temos:
 
 ```{r}
 prob_gbm <- predict(fit_cv, teste, n.trees = num_arv_boost, type = "response")
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
+E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada, temos:
 
 ```{r}
 desempenho <- desempenho %>% 
@@ -312,10 +315,10 @@ desempenho <- desempenho %>%
                    metodo = "boosting"))
 ```
 
-
-Agora vamos otimizar o número de variaveis para verificar se o erro da regressão logística é reduzido. Para tal, será utilizado o método stepwise.
-
 ### Regressão logística com stepwise
+
+Após estimar os cincos modelos acima, vamos verificar se a redução de variáveis para o modelo de regressão logística melhora o desempenho deste. Para tal, será utilizado o método stepwise.
+Assim, vamos selecionar primeiro as variáveis a serem utilizadas por meio do método stepwise:
 
 ```{r}
 modelo_stepAIC <- stepAIC(log, direction = "both")
@@ -324,7 +327,7 @@ dados_stepwise <- subset(dados, select = lista_var)
 
 ```
 
-Criando os datasets de treino e teste do modelo com stepwise:
+Após a seleção de variáveis, vamos criar os datasets de treino e teste:
 
 ```{r}
 treino_stepwise <- subset(treino, select = lista_var)
@@ -338,13 +341,13 @@ log_stepwise <- glm(will_close ~ ., data = treino_stepwise, family = "binomial")
 summary(log_stepwise)
 ```
 
-Aplicando o modelo de previsão com stepwise nos dados de teste para estimar as probabilidades:
+E aplicado o modelo de previsão com stepwise nos dados de teste para estimar as probabilidades:
 
 ```{r}
 prob_log_stepwise <- predict(log_stepwise, newdata = teste_stepwise, type = "response")
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística com stepwise e a respectiva classe observada:
+Feito isso, vamos armazenar em um tibble os resultados das probabilidades obtidas pela regressão logística com stepwise e a respectiva classe observada:
 
 ```{r}
 desempenho <- desempenho %>% 
@@ -354,134 +357,95 @@ desempenho <- desempenho %>%
 ```
 
 
-### Regressão Logística por Porte
+### Regressão Logística sem Outliers
 
-Durante o processo para estimar o modelo de regressão logística, o R fez um alerta que pode ser resultado no número elevado de outliers do dataset. Assim, para tentar minimizar, vamos estimar o modelo de regressão logítica por porte, dividindo em 3 datasets de pequenas, médias e grandes empresas, conforme já definido na análise explotarória. Isso pode melhorar a performance do modelo, mas pode trazer algum prejuízo em virtude da redução do número de observações por modelo. 
-Assim, vamos criar dividir o dataset em 3 subgrupos (equenas, médias e grandes empresas):
+Durante o processo para estimar o modelo de regressão logística, foi feito um alerta que pode ser resultado no número elevado de outliers do dataset, conforme já apontado acima. Assim, vamos estimar o modelo de regressão logítica sem os outliers, utilizando o método de critério IQR (Intervalo Interquartil) para ver se o desempenho dos modelos melhoram.
+
+Nesse caso, o primeiro caso é eliminar os outliers. Como os outliers estão concentrados no limite superior da coluna 'sales', vamos excluir somente esses valores.
 
 ```{r}
-dados_pequena <- dados %>%
-  filter(comp_size == 'Pequena') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como pequena
-dados_pequena <- subset(dados_pequena, select = -c(comp_size)) #incluir o nome da coluna que possui os dados de porte para excluí-la
+Q1 <- quantile(dados$sales_x, 0.25)
+Q3 <- quantile(dados$sales_x, 0.75)
+IQR <- Q3 - Q1
 
-dados_media <- dados %>%
-  filter(comp_size == 'Média') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como media
-dados_media<- subset(dados_media, select = -c(comp_size)) #incluir o nome da coluna que possui os dados de porte para excluí-la
+ls <- Q3 + 1.5 * IQR
 
-dados_grande <- dados %>%
-  filter(comp_size == 'Grande') #incluir o nome da coluna que possui os dados de porte e colocar o nome do porte como grande
-dados_grande <- subset(dados_grande, select = -c(comp_size)) #incluir o nome da coluna que possui os dados de porte para excluí-la
+dados_sem_outliers <- subset(dados, sales_x <= ls)
+```
+
+A etapa seguinte é criar os datasets de treinamento e teste, onde 80% do dataset será de treinamento:
+
+```{r}
+idx_sem_outliers <- sample(nrow(dados_sem_outliers), size = .80 * nrow(dados_sem_outliers), replace = FALSE)
+
+treino_sem_outliers <- dados_sem_outliers[idx_sem_outliers,]
+teste_sem_outliers  <- dados_sem_outliers[-idx_sem_outliers,]
 ```
 
 
-Criando os datasets de treino e teste para cada um dos portes:
+O primeiro modelo a ser estimado é o de regressão logística:
 ```{r}
-idx_pequena <- sample(nrow(dados_pequena), size = .80 * nrow(dados_pequena ), replace = FALSE)
-idx_media <- sample(nrow(dados_media), size = .80 * nrow(dados_media), replace = FALSE)
-idx_grande <- sample(nrow(dados_grande), size = .80 * nrow(dados_grande), replace = FALSE)
-
-treino_pequena <- dados_pequena[idx_pequena,]
-teste_pequena <- dados_pequena[-idx_pequena,]
-
-treino_media <- dados_media[idx_media,]
-teste_media  <- dados_media[-idx_media,]
-
-treino_grande <- dados_grande[idx_grande,]
-teste_grande  <- dados_grande[-idx_grande,]
-
+log_sem_outliers <- glm(will_close ~ ., data = treino_sem_outliers, family = 'binomial')
+summary(log_sem_outliers)
 ```
+A aplicação da função glm do R gerou o alerta ("warning") a seguir: "Warning: glm.fit: probabilidades ajustadas numericamente 0 ou 1 ocorreu". Esse alerta pode ser causado por outliers. Para tentar  mitigar esse problema, vamos posteriormente dividir o dataset de acordo com o porte da empresa e estimar o modelo de regressão logística para cada um dos porte. Por ora, vamos continuar na estimativa e avaliação dos 5 modelos descritos acima.
 
-#### Regressão Logística das Empresas de Pequeno Porte
-
-Vamos estimar o modelo de regressão logística para as empresas de pequeno porte:
+Agora, vamos aplicar o modelo de previsão nos dados de teste para estimar as probabilidades:
 
 ```{r}
-log_pequena <- glm(will_close ~ ., data = treino_pequena, family = "binomial")
-summary(log_pequena)
+prob_log_sem_outliers <- predict(log_sem_outliers, newdata = teste_sem_outliers, type = "response")
 ```
 
-Aplicando o modelo de previsão para as empresas de pequeno porte nos dados de teste para estimar as probabilidades:
-
-```{r}
-prob_log_pequena <- predict(log_pequena, newdata = teste_pequena, type = "response")
-```
-
-E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística para as empresas de pequeno porte e a respectiva classe observada:
+E armazenar em um tibble os resultados das probabilidades obtidas pela regressão logística e a respectiva classe observada:
 
 ```{r}
 desempenho <- desempenho %>% 
-  bind_rows(tibble(prob = prob_log_pequena, 
-                   classes = teste_pequena$will_close, 
-                   metodo = "logística pequeno porte"))
+  bind_rows(tibble(prob = prob_log_sem_outliers, 
+                   classes = teste_sem_outliers$will_close, 
+                   metodo = "logística sem outliers"))
 ```
 
-Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
+Abaixo, foi plotado o gráfico com a importância de cada variável para esse modelo:
 
 ```{r}
-vip(log_pequena, mapping = aes(fill = Sign)) + labs(title = "Modelo de Regressão Logística para Pequeno Porte")
+vip(log, mapping = aes(fill = Sign)) + labs(title = "Modelo de Regressão Logística")
 ```
 
 
-#### Regressão Logística das Empresas de Médio Porte
+### Boosting sem outliers
 
-Vamos estimar o modelo de regressão logística para as empresas de pequeno porte:
+Agora, será criado e testado nesse ciclo de modelagem é o Boosting com 500 árvores e taxa de aprendizagem 0,05 sem os outliers:
 
 ```{r}
-log_media <- glm(will_close ~ ., data = treino_media, family = "binomial")
-summary(log_media)
+(fit_bst_sem_outliers <- gbm(will_close ~ ., distribution = "bernoulli", n.trees = 500, 
+                interaction.depth = 4, shrinkage = 0.05, data = treino_sem_outliers))
+summary(fit_bst_sem_outliers)
 ```
 
-Aplicando o modelo de previsão para as empresas de pequeno porte nos dados de teste para estimar as probabilidades:
+O passo seguinte é fazer a validação cruzadas do modelo para obter o número de árvores ótimo:
 
 ```{r}
-prob_log_media <- predict(log_media, newdata = teste_media, type = "response")
+fit_cv_sem_outliers <- gbm(will_close ~ ., data = treino_sem_outliers, cv.folds = 5, n.trees = 500, 
+              interaction.depth = 4, distribution = "bernoulli", shrinkage = 0.05)
+
+num_arv_boost_sem_outliers <- gbm.perf(fit_cv_sem_outliers, method = "cv") #obtendo a árvore ótima
+
 ```
 
-E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística para as empresas de pequeno porte e a respectiva classe observada:
+Aplicando o modelo de previsão com base na melhor quantidade de árvores (menor erro) e estimando as probabilidades a partir da base de teste, temos:
 
 ```{r}
-desempenho <- desempenho %>% 
-  bind_rows(tibble(prob = prob_log_media, 
-                   classes = teste_media$will_close, 
-                   metodo = "logística medio porte")) 
+prob_gbm_sem_outliers <- predict(fit_cv_sem_outliers, teste_sem_outliers, n.trees = num_arv_boost_sem_outliers, type = "response")
 ```
 
-Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
-
-```{r}
-vip(log_media, mapping = aes(fill = Sign)) + labs(title = "Modelo de Regressão Logística para Médio Porte")
-```
-
-#### Regressão Logística das Empresas de Grande Porte
-
-Vamos estimar o modelo de regressão logística para as empresas de pequeno porte:
-
-```{r}
-log_grande <- glm(will_close ~ ., data = treino_grande, family = "binomial")
-summary(log_grande)
-```
-
-Aplicando o modelo de previsão para as empresas de pequeno porte nos dados de teste para estimar as probabilidades:
-
-```{r}
-prob_log_grande <- predict(log_grande, newdata = teste_grande, type = "response")
-```
-
-E armazenando em um tibble os resultados das probabilidades obtidas pela regressão logística para as empresas de pequeno porte e a respectiva classe observada:
+E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada, temos:
 
 ```{r}
 desempenho <- desempenho %>% 
-  bind_rows( tibble(prob = prob_log_grande, 
-                   classes = teste_grande$will_close, 
-                   metodo = "logística grande porte")) 
+  bind_rows(tibble(prob = prob_gbm_sem_outliers, 
+                   classes = teste_sem_outliers$will_close, 
+                   metodo = "boosting sem outliers"))
 ```
-
-Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo:
-
-```{r}
-vip(log_grande, mapping = aes(fill = Sign)) + labs(title = "Modelo de Regressão Logística para Grande Porte")
-```
-
 
 ### Análise dos Modelos Estimados
 

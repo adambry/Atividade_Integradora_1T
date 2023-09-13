@@ -74,7 +74,7 @@ O primeiro passo é importar os dados. Serão removidos os ID das empresas (comp
 ```{r}
 csv_url <- "https://raw.githubusercontent.com/adambry/Atividade_Integradora_1T/main/df.csv"
 
-dados <- read.csv(csv_url, show_col_types = FALSE) %>% 
+dados <- read.csv(csv_url) %>% 
   dplyr::select(-comp_id)
 ```
 
@@ -340,10 +340,10 @@ desempenho <- desempenho %>%
 #### 2.3.6 Regressão logística com stepwise
 
 Após estimar os cincos modelos acima, vamos verificar se a redução de variáveis para o modelo de regressão logística melhora o desempenho deste. Para tal, será utilizado o método stepwise.
-Assim, vamos selecionar primeiro as variáveis a serem utilizadas por meio do método stepwise:
+Assim, vamos selecionar primeiro as variáveis a serem utilizadas por meio do método stepwise colocando como direção "backward", uma vez que foi a que melhor desempenhou em relação a "both" e "forward" em testes anteriorer:
 
 ```{r}
-modelo_stepAIC <- stepAIC(log, direction = "forward")
+modelo_stepAIC <- stepAIC(log, direction = "backward")
 lista_var <- append(attr(terms(modelo_stepAIC ), "term.labels"), "will_close")
 dados_stepwise <- subset(dados, select = lista_var)
 
@@ -703,7 +703,8 @@ desempenho_sem_outliers %>%
 A partir de dados contábeis e financeiros da empresa em um determinado ano com todos outliers, os modelos estimados tiveram o seguinte resultado:
 
 - O modelo de boosting foi que obteve o melhor desempenho. NO entanto, não foi muito superior aos demais, que apresentaram resultados de performance próximos;
-- A importância das variáveis preditoras em cada modelo variou: enquanto nos modelos de regressão logística e de regularização os peso das variáveis categóricas foi relevantes, nos modelos de floresta e boosting as variáveis númericas  
-- A importância das variáveis no modelo de boosting corrobora com a intuição prévia, colocando variáveis financeiras como vendas (sales_x), patrimônio líquido (share_eq) e índice de liquidez corrente (curr_idx_liq) como mais relevantes para o modelo.
+- A importância das variáveis preditoras em cada modelo variou: enquanto nos modelos de regressão logística e de regularização os peso das variáveis categóricas foi relevante; nos modelos de floresta e boosting, as variáveis númericas;
+- A importância das variáveis no modelo de boosting corrobora com a intuição prévia, colocando variáveis financeiras como vendas (sales_x), patrimônio líquido (share_eq) e índice de liquidez corrente (curr_idx_liq) como mais relevantes para o modelo;
+- Aplicar o método de seleção de subconjuntos não melhora o desempenho do modelo de regressão logística. Além disso, o número de varáveis selecionadas não difere de forma significativa em relação ao modelo de regressão logísitica com todas as variáveis.
 
 Apesar de alguns modelos estimados sem a presença dos outliers no dataset possuirem melhor desempenho, cabe ressaltar que não necessariamente pode ser os melhores, uma vez que retirou-se informações que são característica da população (ter empresas com faturamento alto).

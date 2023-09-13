@@ -705,6 +705,6 @@ A partir de dados contábeis e financeiros da empresa em um determinado ano com 
 - O modelo de boosting foi o modelo que obteve o melhor desempenho. No entanto, não foi muito superior aos demais, que apresentaram resultados de performance próximos;
 - A importância das variáveis preditoras em cada modelo variou: enquanto nos modelos de regressão logística e de regularização os pesos das variáveis categóricas foram mais relevantes; nos modelos de floresta e boosting, as variáveis númericas foram mais relevantes;
 - A importância das variáveis no modelo de boosting corrobora com a intuição prévia, colocando variáveis financeiras como vendas (sales_x), patrimônio líquido (share_eq) e índice de liquidez corrente (curr_idx_liq) como mais relevantes para o modelo;
-- Aplicar o método de seleção de subconjuntos não melhora o desempenho do modelo de regressão logística. Além disso, o número de varáveis selecionadas não difere de forma significativa em relação ao modelo de regressão logísitica com todas as variáveis.
+- Apesar de alguns modelos estimados, sem a presença dos outliers no dataset, possuírem melhor desempenho, cabe ressaltar que não necessariamente podem ser melhores, uma vez que retirou-se informações que são características da população (ter empresas com faturamento alto).
 
 Apesar de alguns modelos estimados, sem a presença dos outliers no dataset, possuírem melhor desempenho, cabe ressaltar que não necessariamente podem ser melhores, uma vez que retirou-se informações que são características da população (ter empresas com faturamento alto).

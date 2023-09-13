@@ -29,13 +29,45 @@ library(ranger)
 library(pROC)
 ```
 
-## Etapa de Modelagem - Introdução
+## 1. Etapa de Modelagem - Introdução
 
-O objetivo dessa parte do Projeto Integrador é desenvolver um modelo previtivo para indicar se uma empresa irá falir em até dois anos a partir da avaliação de quatro classes de modelos: regressão logística, RIDGE/LASSO, floresta aleatória e Boosting. O pipeline de pré-processamento dos dados foi feito em Python. Nessa etapa de pré-processamento, foi criada a variável chamada will_close, que é a variável resposta desse processo de modelagem. Nela, o valor "1" significa que a empresa fechará em até 2 anos e ZERO (0) que a empresa não fechou nesse mesmo período de dois anos após 2012 (ano de referência para a modelagem).
+O objetivo dessa parte do Projeto Integrador é desenvolver um modelo previtivo para indicar se uma empresa irá falir em até dois anos a partir da avaliação em quatro classes de modelos: 
 
-Além dos modelos listados acima, serão utilizadas outras abordagens, como implementar o método de seleção de subconjuntos para as variáveis preditoras (stepwise) e testar o desempenho para modelagem por porte da empresa (pequena, média e grande), a ser feito de forma separada.
+- regressão logística
+- regularização (modelos RIDGE e LASSO)
+- floresta aleatória
+- boosting
+
+O pipeline de pré-processamento dos dados foi feito em Python e o seu resultado exportado para cvs para a modelagem em R. Nessa etapa de pré-processamento, foi criada a variável chamada will_close, que é a variável resposta desse processo de modelagem. Nela, o valor "1" significa que a empresa fechará em até 2 anos e ZERO (0) que a empresa não fechou nesse mesmo período de dois anos. O ano escolhido para o processo de modelagem, conforme os requisitos definidos nas isntruções desse projeto, foi o de 2012.
+
+Além dos modelos listados acima, será utilizada uma abordagem de seleção de subconjuntos para as variáveis preditoras, stepwise.
+
+### 1.1 Outliers
+
+Conforme identificado na etapa de pré-processamento dos dados, o dataset utilizado possui um número significativo de outliers, uma vez que os dados se encontram concentrados em torno de empresas de volume de vendas menor. Para fins de análise, foram estimados modelos para as classes acima listadas com e sem esses outliers.
+No entanto, é importante ressaltar que esses outliers são parte relevante da população e podem conter informações sobre a mesma, podendo não ser observações que fogem do padrão típico de comportamento dessa população.
+
+
+### 1.2 Critério de Avaliação dos Modelos de Classificação Estimados
 
 Para avaliar o desempenho de cada um dos modelos de classificação estimados, será utilizado a área sob a curva ROC (AUC), que mede a probabilidade de uma observação de evento ocorrer (no caso, se a empresa irá fechar) ter uma probabilidade maior do que uma observação do grupo de referência. Isto é, qual é o percentual de classificação correta do modelo em questão. Logo, um valor de AUC de um dado modelo igual 1 indica um desempenho de 100% na classificação e um valor de 0,5 significa que o modelo não é capaz de classificar de forma melhor do que uma escolha num processo aleatório.
+
+## 2. Modelagem
+
+### 2.1 Análise dos Modelos
+
+Agora, vamos construir os modelos para predizer a variável resposta will_close (se a empresa irá falir em até dois anos), ajustando os seus respectivos hiperparâmetros para obter o seu melhor desempenho, conforme abaixo:
+
+- Regressão Logística
+- Rigde: ajuste do lambda (penalização dos coeficientes) para encontrar o modelo ótimo
+- LASSO: ajuste do lambda (penalização dos coeficientes) para encontrar o modelo ótimo
+- Floresta Aleatória: serão estimados um modelo com 500 árvores e todas variáveis e outro em que testa-se o modelo de 1 a 500 árvores e de 2 a 24 variáveis por split
+- Boosting: um modelo com 1000 árvores, taxa de aprendizado de 0,05 e 4 variáveis por split e um número de folds de 5
+- Regressão logística com método stepewise para seleção de subconjuntos de varáveis
+
+Além disso, também serão estimados os modelos descritos acima (exceto stepwise) sem os outliers. Foram considerados como outliers os valores que estão acima do valor Q3 + 1,5 * IQR, onde Q3 é o limite superior do terceiro quartil e IQR é o Intervalo Interquartil.
+
+### 2.2 Importação, Análise Descritiva dos Dados e Tratamento das Informações Categóricas
 
 O primeiro passo é importar os dados. Serão removidos os ID das empresas (comp_id), pois essas informações não serão utilizados na modelagem:
 
@@ -45,30 +77,20 @@ dados <- read_csv("C:/Users/Flavio/Dropbox/My PC (LAPTOP-FVTATBSD)/Documents/Pó
 ```
 
 
-A próxima etapa é verificar se os dados foram migrados corretamente. 
+A próxima etapa é verificar se os dados foram migrados corretamente por meio de suas medidas:
 ```{r}
 skim(dados)
 ```
 
-
-Como há variáveis categóricas, vamos transformá-las em fator para a modelagem: 
+Como há variáveis categóricas, vamos transformá-las em fator para a modelagem no R por ser um pré-requisito das funções dessa linguagem: 
 ```{r}
 dados <- dados %>% 
   mutate_if(is.character, ~as.factor(.x))
 ```
 
+### 2.3 Modelos com Outliers
 
-## Análise dos Modelos
-
-Nesse passo, vamos construir os modelos para predizer a variável resposta will_close (se a empresa irá falir em até dois anos), a saber:
-
-- Regressão Logísitica
-- Rigde
-- LASSO
-- Floresta Aleatória
-- Boosting
-
-A etapa seguinte é criar os datasets de treinamento e teste, onde 80% do dataset será de treinamento:
+Para o processo de modelagem, a primeira etapa é criar os datasets de treinamento e teste, onde 80% do dataset será de treinamento:
 
 ```{r}
 set.seed(321)
@@ -79,15 +101,13 @@ treino <- dados[idx,]
 teste  <- dados[-idx,]
 ```
 
-
-### Regressão Logística
+#### 2.3.1 Regressão Logística
 
 O primeiro modelo a ser estimado é o de regressão logística:
 ```{r}
 log <- glm(will_close ~ ., data = treino, family = 'binomial')
 summary(log)
 ```
-A aplicação da função glm do R gerou o alerta ("warning") a seguir: "Warning: glm.fit: probabilidades ajustadas numericamente 0 ou 1 ocorreu". Esse alerta pode ser causado por outliers. Para tentar  mitigar esse problema, vamos posteriormente estimar os mesmos modelos sem os outliers. Por ora, vamos continuar na estimativa e avaliação dos 5 modelos descritos acima.
 
 Agora, vamos aplicar o modelo de previsão nos dados de teste para estimar as probabilidades:
 
@@ -109,7 +129,7 @@ Abaixo, foi plotado o gráfico com a importância de cada variável para esse mo
 vip(log, mapping = aes(fill = Sign)) + labs(title = "Importância das Variáveis do Modelo de Regressão Logística", x = "Variáveis", y = "Importância")
 ```
 
-### Modelo Ridge
+#### 2.3.2 Modelo Ridge
 
 O próximo modelo a ser estimado é o Ridge. Primeiro, deverão ser preparadados os datasets de treinamento e teste para aplicação da função do pacote glmnet.
 
@@ -155,7 +175,7 @@ Abaixo, plotamos o gráfico com a importância de cada variável para esse model
 vip(ridge, mapping = aes(fill = Sign)) + labs(title = "Importância das Variáveis do Modelo Rigde", x = "Variáveis", y = "Importância")
 ```
 
-### Regressão LASSO
+#### 2.3.3 Regressão LASSO
 
 O modelo seguinte a ser criado é o LASSO. Assim como no modelo Ridge, foi criado o modelo LASSO e plotado o gráfico com os lambdas variando até 500:
 
@@ -193,7 +213,7 @@ vip(lasso, mapping = aes(fill = Sign)) + labs(title = "Importância das Variáve
 ```
 
 
-### Floresta Aleatória
+#### 2.3.4 Floresta Aleatória
 
 O próximo modelo que será criado e testado é o de floresta aleatória com 500 árvores e com todas as variáveis:
 
@@ -225,7 +245,7 @@ vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", data 
 Agora, vamos iterar para testar o número de árvores de 1 a 500, bem como o número de variáveis por split, plotar o resultado dessa iteração:
 
 ```{r}
-result_arvores <- crossing(mtry = c(2, 4, 8, 12, 16, 20, 23), #número de variáveis por split a ser testados
+result_arvores <- crossing(mtry = c(2, 4, 8, 12, 16, 20, 24), #número de variáveis por split a ser testados
                        n_arvores = c(1:10, seq(10, 500, 10)))
 itera <- function(mtry, n_arvores) {
   rf_itera <- ranger(will_close ~ ., probability = TRUE, num.trees = n_arvores, mtry = mtry, data = treino)
@@ -280,12 +300,12 @@ vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", num.t
 ```
 
 
-### Boosting
+#### 2.3.5 Boosting
 
-O último modelo que será criado e testado nesse ciclo de modelagem é o Boosting com 500 árvores e taxa de aprendizagem 0,05:
+O último modelo que será criado e testado nesse ciclo de modelagem é o Boosting com 1000 árvores, taxa de aprendizagem de 0,05, 4 variáveis por split e um número de folds de 5:
 
 ```{r}
-(fit_bst <- gbm(will_close ~ ., distribution = "bernoulli", n.trees = 500, 
+(fit_bst <- gbm(will_close ~ ., distribution = "bernoulli", n.trees = 1000, 
                 interaction.depth = 4, shrinkage = 0.05, data = treino))
 summary(fit_bst)
 ```
@@ -293,7 +313,7 @@ summary(fit_bst)
 O passo seguinte é fazer a validação cruzadas do modelo para obter o número de árvores ótimo:
 
 ```{r}
-fit_cv <- gbm(will_close ~ ., data = treino, cv.folds = 5, n.trees = 500, 
+fit_cv <- gbm(will_close ~ ., data = treino, cv.folds = 5, n.trees = 1000, 
               interaction.depth = 4, distribution = "bernoulli", shrinkage = 0.05)
 
 num_arv_boost <- gbm.perf(fit_cv, method = "cv") #obtendo a árvore ótima
@@ -315,13 +335,13 @@ desempenho <- desempenho %>%
                    metodo = "boosting"))
 ```
 
-### Regressão logística com stepwise
+#### 2.3.6 Regressão logística com stepwise
 
 Após estimar os cincos modelos acima, vamos verificar se a redução de variáveis para o modelo de regressão logística melhora o desempenho deste. Para tal, será utilizado o método stepwise.
 Assim, vamos selecionar primeiro as variáveis a serem utilizadas por meio do método stepwise:
 
 ```{r}
-modelo_stepAIC <- stepAIC(log, direction = "both")
+modelo_stepAIC <- stepAIC(log, direction = "forward")
 lista_var <- append(attr(terms(modelo_stepAIC ), "term.labels"), "will_close")
 dados_stepwise <- subset(dados, select = lista_var)
 
@@ -363,10 +383,9 @@ vip(log_stepwise, mapping = aes(fill = Sign)) +
   labs(title = "Importância das Variáveis do Modelo de Regressão Logística com Stepwise", x = "Variáveis", y = "Importância")
 ```
 
+### 2.4 Modelos sem Outliers
 
-### Regressão Logística sem Outliers
-
-Durante o processo para estimar o modelo de regressão logística, foi feito um alerta que pode ser resultado no número elevado de outliers do dataset, conforme já apontado acima. Assim, vamos estimar o modelo de regressão logítica sem os outliers, utilizando o método de critério IQR (Intervalo Interquartil) para ver se o desempenho dos modelos melhoram.
+Durante o processo para estimar o modelo de regressão logística, foi feito um alerta que pode ser resultado no número elevado de outliers do dataset, conforme já apontado acima. Assim, vamos estimar o modelo de regressão logítica sem os outliers, utilizando o método de critério IQR (Intervalo Interquartil).
 
 Nesse caso, o primeiro caso é eliminar os outliers. Como os outliers estão concentrados no limite superior da coluna 'sales', vamos excluir somente esses valores.
 
@@ -386,16 +405,15 @@ A etapa seguinte é criar os datasets de treinamento e teste, onde 80% do datase
 idx_sem_outliers <- sample(nrow(dados_sem_outliers), size = .80 * nrow(dados_sem_outliers), replace = FALSE)
 
 treino_sem_outliers <- dados_sem_outliers[idx_sem_outliers,]
-#teste_sem_outliers  <- dados_sem_outliers[-idx_sem_outliers,]
 ```
 
+#### 2.4.1 Regressão Logística sem Outliers
 
-O primeiro modelo a ser estimado é o de regressão logística:
+O primeiro modelo a ser estimado sem os outliers é o de regressão logística:
 ```{r}
 log_sem_outliers <- glm(will_close ~ ., data = treino_sem_outliers, family = 'binomial')
 summary(log_sem_outliers)
 ```
-A aplicação da função glm do R gerou o alerta ("warning") a seguir: "Warning: glm.fit: probabilidades ajustadas numericamente 0 ou 1 ocorreu". Esse alerta pode ser causado por outliers. Para tentar  mitigar esse problema, vamos posteriormente dividir o dataset de acordo com o porte da empresa e estimar o modelo de regressão logística para cada um dos porte. Por ora, vamos continuar na estimativa e avaliação dos 5 modelos descritos acima.
 
 Agora, vamos aplicar o modelo de previsão nos dados de teste para estimar as probabilidades:
 
@@ -406,10 +424,9 @@ prob_log_sem_outliers <- predict(log_sem_outliers, newdata = teste, type = "resp
 E armazenar em um tibble os resultados das probabilidades obtidas pela regressão logística e a respectiva classe observada:
 
 ```{r}
-desempenho <- desempenho %>% 
-  bind_rows(tibble(prob = prob_log_sem_outliers, 
+desempenho_sem_outliers <- tibble(prob = prob_log_sem_outliers, 
                    classes = teste$will_close, 
-                   metodo = "logística sem outliers"))
+                   metodo = "logística sem outliers")
 ```
 
 Abaixo, foi plotado o gráfico com a importância de cada variável para esse modelo:
@@ -419,16 +436,13 @@ vip(log_sem_outliers, mapping = aes(fill = Sign)) +
   labs(title = "Importância das Variáveis do Modelo de Regressão Logística sem Outliers", x = "Variáveis", y = "Importância")
 ```
 
-### Modelo Ridge sem Outliers
+#### 2.4.2 Modelo Ridge sem Outliers
 
 O próximo modelo a ser estimado sem os outliers é o Ridge. Assim como foi feito no modelo ridge anterior, deverão ser preparadados os datasets de treinamento e teste para aplicação da função do pacote glmnet.
 
 ```{r}
 X_treino_sem_outliers <- model.matrix(will_close ~ ., dados_sem_outliers)[idx_sem_outliers,-1]
 y_treino_sem_outliers <- dados_sem_outliers$will_close[idx_sem_outliers]
-
-#X_teste_sem_outliers <- model.matrix(will_close ~ ., dados_sem_outliers)[-idx_sem_outliers,-1]
-#y_teste_sem_outliers <- dados_sem_outliers$will_close[-idx_sem_outliers]
 ```
 
 Abaixo, foi criado o modelo Ridge e plotando o gráfico com os lambdas variando até 500:
@@ -456,7 +470,7 @@ prob_ridge_sem_outliers <- predict(ridge_sem_outliers, newx = X_teste,
 E armazenar em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
 
 ```{r}
-desempenho <- desempenho %>% 
+desempenho_sem_outliers <- desempenho_sem_outliers %>% 
   bind_rows(tibble(prob = as.numeric(prob_ridge_sem_outliers), 
                    classes = y_teste, 
                    metodo = "ridge sem outliers"))
@@ -469,7 +483,7 @@ vip(ridge_sem_outliers, mapping = aes(fill = Sign)) +
   labs(title = "Importância das Variáveis do Modelo Rigde sem Outliers", x = "Variáveis", y = "Importância")
 ```
 
-### Regressão LASSO sem Outliers
+#### 2.4.3 Regressão LASSO sem Outliers
 
 O modelo seguinte a ser criado sem outliers é o LASSO. Assim como no modelo Ridge, foi criado o modelo LASSO e plotado o gráfico com os lambdas variando até 500:
 
@@ -496,7 +510,7 @@ prob_lasso_sem_outliers <- predict(lasso_sem_outliers, newx = X_teste,
 E armazenado em um tibble os resultados das probabilidades obtidas pelo modelo Lasso e a respectiva classe observada:
 
 ```{r}
-desempenho <- desempenho %>% 
+desempenho_sem_outliers <- desempenho_sem_outliers %>% 
   bind_rows(tibble(prob = as.numeric(prob_lasso_sem_outliers), 
                    classes = y_teste, 
                    metodo = "lasso sem outliers"))
@@ -510,7 +524,7 @@ vip(lasso_sem_outliers, mapping = aes(fill = Sign)) +
 ```
 
 
-### Floresta Aleatória sem Outliers
+#### 2.4.4 Floresta Aleatória sem Outliers
 
 O próximo modelo sem outliers que será criado e testado é o de floresta aleatória com 500 árvores e com todas as variáveis:
 
@@ -527,7 +541,7 @@ prob_rf_sem_outliers <- predict(rf_sem_outliers, teste)$predictions[,2]
 E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo de floresta aleatória e a respectiva classe observada:
 
 ```{r}
-desempenho <- desempenho %>% 
+desempenho_sem_outliers <- desempenho_sem_outliers %>% 
   bind_rows(tibble(prob = prob_rf_sem_outliers, 
                    classes = teste$will_close, 
                    metodo = "floresta aleatória sem outliers"))
@@ -585,7 +599,7 @@ prob_rf_otima_sem_outliers <- predict(rf_otima_sem_outliers, teste)$predictions[
 E armazenar em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
 
 ```{r}
-desempenho <- desempenho %>% 
+desempenho_sem_outliers <- desempenho_sem_outliers %>% 
   bind_rows(tibble(prob = prob_rf_otima_sem_outliers, 
                    classes = teste$will_close, 
                    metodo = "floresta aleatória ótima sem outliers"))
@@ -599,12 +613,12 @@ vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", num.t
 ```
 
 
-### Boosting sem outliers
+#### 2.4.5 Boosting sem outliers
 
-Agora, será criado e testado nesse ciclo de modelagem é o Boosting com 500 árvores e taxa de aprendizagem 0,05 sem os outliers:
+Agora, será criado e testado nesse ciclo de modelagem é o Boosting sem os outliers  com 1000 árvores, taxa de aprendizagem de 0,05, 4 variáveis por split e um número de folds de 5:
 
 ```{r}
-(fit_bst_sem_outliers <- gbm(will_close ~ ., distribution = "bernoulli", n.trees = 500, 
+(fit_bst_sem_outliers <- gbm(will_close ~ ., distribution = "bernoulli", n.trees = 1000, 
                 interaction.depth = 4, shrinkage = 0.05, data = treino_sem_outliers))
 summary(fit_bst_sem_outliers)
 ```
@@ -612,7 +626,7 @@ summary(fit_bst_sem_outliers)
 O passo seguinte é fazer a validação cruzadas do modelo para obter o número de árvores ótimo:
 
 ```{r}
-fit_cv_sem_outliers <- gbm(will_close ~ ., data = treino_sem_outliers, cv.folds = 5, n.trees = 500, 
+fit_cv_sem_outliers <- gbm(will_close ~ ., data = treino_sem_outliers, cv.folds = 5, n.trees = 1000, 
               interaction.depth = 4, distribution = "bernoulli", shrinkage = 0.05)
 
 num_arv_boost_sem_outliers <- gbm.perf(fit_cv_sem_outliers, method = "cv") #obtendo a árvore ótima
@@ -628,15 +642,17 @@ prob_gbm_sem_outliers <- predict(fit_cv_sem_outliers, teste, n.trees = num_arv_b
 E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada, temos:
 
 ```{r}
-desempenho <- desempenho %>% 
+desempenho_sem_outliers <- desempenho_sem_outliers %>% 
   bind_rows(tibble(prob = prob_gbm_sem_outliers, 
                    classes = teste$will_close, 
                    metodo = "boosting sem outliers"))
 ```
 
-### Análise dos Modelos Estimados
+### 2.5 Resultados dos Modelos Estimados
 
-Vamos plotar a curva ROC:
+#### 2.5.1 Modelos com Outliers
+
+Inicialmente, vamos plotar a curva ROC para cada um dos modelos:
 
 ```{r}
 desempenho %>% 
@@ -646,7 +662,7 @@ desempenho %>%
   autoplot()
 ```
 
-Vamos analisar AUC para cada modelo estimado:
+E calcular o AUC, a métrica de desempenho, para cada modelo estimado:
 
 ```{r}
 desempenho %>% 
@@ -655,3 +671,37 @@ desempenho %>%
   roc_auc(classes, prob, event_level = "second") %>% 
   arrange(desc(.estimate))
 ```
+
+#### 2.5.2 Modelos sem Outliers
+
+Agora, vamos plotar a curva ROC para cada um dos modelos que foram estimados sem os outliers no dataset:
+
+
+```{r}
+desempenho_sem_outliers %>% 
+  mutate(classes = factor(classes)) %>% 
+  group_by(metodo) %>% 
+  roc_curve(classes, prob, event_level = "second") %>% 
+  autoplot()
+```
+
+E calcular AUC para esses modelos:
+
+```{r}
+desempenho_sem_outliers %>% 
+  mutate(classes = factor(classes)) %>% 
+  group_by(metodo) %>% 
+  roc_auc(classes, prob, event_level = "second") %>% 
+  arrange(desc(.estimate))
+```
+
+
+## 3.Conclusão
+
+A partir de dados contábeis e financeiros da empresa em um determinado ano com todos outliers, os modelos estimados tiveram o seguinte resultado:
+
+- O modelo de boosting foi que obteve o melhor desempenho. NO entanto, não foi muito superior aos demais, que apresentaram resultados de performance próximos;
+- A importância das variáveis preditoras em cada modelo variou: enquanto nos modelos de regressão logística e de regularização os peso das variáveis categóricas foi relevantes, nos modelos de floresta e boosting as variáveis númericas  
+- A importância das variáveis no modelo de boosting corrobora com a intuição prévia, colocando variáveis financeiras como vendas (sales_x), patrimônio líquido (share_eq) e índice de liquidez corrente (curr_idx_liq) como mais relevantes para o modelo.
+
+Apesar de alguns modelos estimados sem a presença dos outliers no dataset possuirem melhor desempenho, cabe ressaltar que não necessariamente pode ser os melhores, uma vez que retirou-se informações que são característica da população (ter empresas com faturamento alto).

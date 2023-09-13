@@ -72,7 +72,9 @@ Além disso, também serão estimados os modelos descritos acima (exceto stepwis
 O primeiro passo é importar os dados. Serão removidos os ID das empresas (comp_id), pois essas informações não serão utilizados na modelagem:
 
 ```{r}
-dados <- read_csv("C:/Users/Flavio/Dropbox/My PC (LAPTOP-FVTATBSD)/Documents/Pós Insper Data Science/Projeto Integrador AEM I e CCD/df.csv", show_col_types = FALSE) %>% 
+csv_url <- "https://raw.githubusercontent.com/adambry/Atividade_Integradora_1T/main/df.csv"
+
+dados <- read.csv(csv_url, show_col_types = FALSE) %>% 
   dplyr::select(-comp_id)
 ```
 

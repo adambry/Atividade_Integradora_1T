@@ -383,12 +383,10 @@ dados_sem_outliers <- subset(dados, sales_x <= ls)
 A etapa seguinte é criar os datasets de treinamento e teste, onde 80% do dataset será de treinamento:
 
 ```{r}
-set.seed(321)
-
 idx_sem_outliers <- sample(nrow(dados_sem_outliers), size = .80 * nrow(dados_sem_outliers), replace = FALSE)
 
 treino_sem_outliers <- dados_sem_outliers[idx_sem_outliers,]
-teste_sem_outliers  <- dados_sem_outliers[-idx_sem_outliers,]
+#teste_sem_outliers  <- dados_sem_outliers[-idx_sem_outliers,]
 ```
 
 
@@ -402,7 +400,7 @@ A aplicação da função glm do R gerou o alerta ("warning") a seguir: "Warning
 Agora, vamos aplicar o modelo de previsão nos dados de teste para estimar as probabilidades:
 
 ```{r}
-prob_log_sem_outliers <- predict(log_sem_outliers, newdata = teste_sem_outliers, type = "response")
+prob_log_sem_outliers <- predict(log_sem_outliers, newdata = teste, type = "response")
 ```
 
 E armazenar em um tibble os resultados das probabilidades obtidas pela regressão logística e a respectiva classe observada:
@@ -410,7 +408,7 @@ E armazenar em um tibble os resultados das probabilidades obtidas pela regressã
 ```{r}
 desempenho <- desempenho %>% 
   bind_rows(tibble(prob = prob_log_sem_outliers, 
-                   classes = teste_sem_outliers$will_close, 
+                   classes = teste$will_close, 
                    metodo = "logística sem outliers"))
 ```
 
@@ -429,8 +427,8 @@ O próximo modelo a ser estimado sem os outliers é o Ridge. Assim como foi feit
 X_treino_sem_outliers <- model.matrix(will_close ~ ., dados_sem_outliers)[idx_sem_outliers,-1]
 y_treino_sem_outliers <- dados_sem_outliers$will_close[idx_sem_outliers]
 
-X_teste_sem_outliers <- model.matrix(will_close ~ ., dados_sem_outliers)[-idx_sem_outliers,-1]
-y_teste_sem_outliers <- dados_sem_outliers$will_close[-idx_sem_outliers]
+#X_teste_sem_outliers <- model.matrix(will_close ~ ., dados_sem_outliers)[-idx_sem_outliers,-1]
+#y_teste_sem_outliers <- dados_sem_outliers$will_close[-idx_sem_outliers]
 ```
 
 Abaixo, foi criado o modelo Ridge e plotando o gráfico com os lambdas variando até 500:
@@ -451,7 +449,7 @@ plot(cv_ridge_sem_outliers, cex.lab = 1.3)
 Vamos aplicar o modelo de previsão com base no melhor lambda (menor erro), estimando as probabilidades a partir da base de teste:
 
 ```{r}
-prob_ridge_sem_outliers <- predict(ridge_sem_outliers, newx = X_teste_sem_outliers,
+prob_ridge_sem_outliers <- predict(ridge_sem_outliers, newx = X_teste,
                       s = cv_ridge_sem_outliers$lambda.min, type = "response")
 ```
 
@@ -460,7 +458,7 @@ E armazenar em um tibble os resultados das probabilidades obtidas pelo modelo Ri
 ```{r}
 desempenho <- desempenho %>% 
   bind_rows(tibble(prob = as.numeric(prob_ridge_sem_outliers), 
-                   classes = y_teste_sem_outliers, 
+                   classes = y_teste, 
                    metodo = "ridge sem outliers"))
 ```
 
@@ -491,7 +489,7 @@ plot(cv_lasso_sem_outliers, cex.lab = 1.3)
 Agora, será aplicado o modelo de previsão com base no melhor lambda (menor erro), estimando as probabilidades a partir da base de teste:
 
 ```{r}
-prob_lasso_sem_outliers <- predict(lasso_sem_outliers, newx = X_teste_sem_outliers,
+prob_lasso_sem_outliers <- predict(lasso_sem_outliers, newx = X_teste,
                                    s = cv_lasso_sem_outliers$lambda.min, type = "response")
 ```
 
@@ -500,7 +498,7 @@ E armazenado em um tibble os resultados das probabilidades obtidas pelo modelo L
 ```{r}
 desempenho <- desempenho %>% 
   bind_rows(tibble(prob = as.numeric(prob_lasso_sem_outliers), 
-                   classes = y_teste_sem_outliers, 
+                   classes = y_teste, 
                    metodo = "lasso sem outliers"))
 ```
 
@@ -523,7 +521,7 @@ rf_sem_outliers <- ranger(will_close ~ ., probability = TRUE, data = treino_sem_
 Para essa floresta aleatória com 500 árvores e com todas as variáveis, vamos fazer a previsão a partir dos dados de teste:
 
 ```{r}
-prob_rf_sem_outliers <- predict(rf_sem_outliers, teste_sem_outliers)$predictions[,2]
+prob_rf_sem_outliers <- predict(rf_sem_outliers, teste)$predictions[,2]
 ```
 
 E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo de floresta aleatória e a respectiva classe observada:
@@ -531,7 +529,7 @@ E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo 
 ```{r}
 desempenho <- desempenho %>% 
   bind_rows(tibble(prob = prob_rf_sem_outliers, 
-                   classes = teste_sem_outliers$will_close, 
+                   classes = teste$will_close, 
                    metodo = "floresta aleatória sem outliers"))
 ```
 
@@ -581,7 +579,7 @@ rf_otima_sem_outliers <- ranger(will_close ~ ., probability = TRUE, num.trees = 
 Para essa floresta aleatória ótima, vamos fazer a previsão a partir dos dados de teste:
 
 ```{r}
-prob_rf_otima_sem_outliers <- predict(rf_otima_sem_outliers, teste_sem_outliers)$predictions[,2]
+prob_rf_otima_sem_outliers <- predict(rf_otima_sem_outliers, teste)$predictions[,2]
 ```
 
 E armazenar em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada:
@@ -589,7 +587,7 @@ E armazenar em um tibble os resultados das probabilidades obtidas pelo modelo Ri
 ```{r}
 desempenho <- desempenho %>% 
   bind_rows(tibble(prob = prob_rf_otima_sem_outliers, 
-                   classes = teste_sem_outliers$will_close, 
+                   classes = teste$will_close, 
                    metodo = "floresta aleatória ótima sem outliers"))
 ```
 
@@ -624,7 +622,7 @@ num_arv_boost_sem_outliers <- gbm.perf(fit_cv_sem_outliers, method = "cv") #obte
 Aplicando o modelo de previsão com base na melhor quantidade de árvores (menor erro) e estimando as probabilidades a partir da base de teste, temos:
 
 ```{r}
-prob_gbm_sem_outliers <- predict(fit_cv_sem_outliers, teste_sem_outliers, n.trees = num_arv_boost_sem_outliers, type = "response")
+prob_gbm_sem_outliers <- predict(fit_cv_sem_outliers, teste, n.trees = num_arv_boost_sem_outliers, type = "response")
 ```
 
 E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo Ridge e a respectiva classe observada, temos:
@@ -632,7 +630,7 @@ E armazenando em um tibble os resultados das probabilidades obtidas pelo modelo 
 ```{r}
 desempenho <- desempenho %>% 
   bind_rows(tibble(prob = prob_gbm_sem_outliers, 
-                   classes = teste_sem_outliers$will_close, 
+                   classes = teste$will_close, 
                    metodo = "boosting sem outliers"))
 ```
 

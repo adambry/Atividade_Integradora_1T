@@ -27,6 +27,7 @@ library(gbm)
 library(xgboost)
 library(ranger)
 library(pROC)
+library(knitr)
 ```
 
 ## 1. Etapa de Modelagem - Introdução
@@ -50,7 +51,10 @@ No entanto, é importante ressaltar que esses outliers são parte relevante da p
 
 ### 1.2 Critério de Avaliação dos Modelos de Classificação Estimados
 
-Para avaliar o desempenho de cada um dos modelos de classificação estimados, será utilizado a área sob a curva ROC (AUC), que mede a probabilidade de uma observação de evento ocorrer (no caso, se a empresa irá fechar) ter uma probabilidade maior do que uma observação do grupo de referência. Isto é, qual é o percentual de classificação correta do modelo em questão. Logo, um valor de AUC de um dado modelo igual 1 indica um desempenho de 100% na classificação e um valor de 0,5 significa que o modelo não é capaz de classificar de forma melhor do que uma escolha num processo aleatório.
+Para avaliar o desempenho de cada um dos modelos de classificação estimados, será utilizada a área sob a curva ROC (AUC). A curva ROC (Receiver operating characteristic) é um gráfico que ilustra o desempenho de classificação correta de cada modelo à medida que o corte que delimita a classificação de um evento à partir das probalidades estimadas varia. A medida AUC é a área embaixo dessa curva calculada. Logo, ela mede a probabilidade de uma observação de evento ocorrer (no caso, se a empresa irá fechar) ter uma probabilidade maior do que uma observação do grupo de referência. Isto é, qual é o percentual de classificação correta do modelo em questão. Portante, um valor de AUC de um dado modelo igual 1 indica um desempenho de 100% na classificação e um valor de 0,5 significa que o modelo não é capaz de classificar de forma melhor do que uma escolha num processo aleatório.
+
+É importante ressaltar que o corte para classificar se a empresa fechará ou não à partir das probabilidades estimadas pode variar a partir do próposito definido para esse processo de modelagem, algo que está fora do escopo desse projeto.
+
 
 ## 2. Modelagem
 
@@ -84,7 +88,14 @@ A próxima etapa é verificar se os dados foram migrados corretamente por meio d
 skim(dados)
 ```
 
-Como há variáveis categóricas, vamos transformá-las em fator para a modelagem no R por ser um pré-requisito das funções dessa linguagem: 
+Apesar dos dados da variável "urban_m" terem sido convertidos para "object" (string) no pipeline de pré-processamento, essa variável foi armezada como numérica no arquivo csv. Assim, vamos convertê-la para fator, pois se trata de uma variável categórica.
+```{r}
+dados$urban_m <- factor(dados$urban_m)
+skim(dados)
+```
+
+
+Para as variáveis categóricas, vamos transformá-las em fator para a modelagem no R por ser um pré-requisito das funções dessa linguagem: 
 ```{r}
 dados <- dados %>% 
   mutate_if(is.character, ~as.factor(.x))
@@ -107,7 +118,7 @@ teste  <- dados[-idx,]
 
 O primeiro modelo a ser estimado é o de regressão logística:
 ```{r}
-log <- glm(will_close ~ ., data = treino, family = 'binomial')
+log <- suppressWarnings({glm(will_close ~ ., data = treino, family = 'binomial')})
 summary(log)
 ```
 
@@ -156,6 +167,7 @@ A seguir, vamos fazer a validação cruzada do modelo:
 cv_ridge <- cv.glmnet(X_treino, y_treino, alpha = 0, family = "binomial")
 plot(cv_ridge, cex.lab = 1.3)
 ```
+
 Vamos aplicar o modelo de previsão com base no melhor lambda (menor erro), estimando as probabilidades a partir da base de teste:
 
 ```{r}
@@ -241,7 +253,7 @@ desempenho <- desempenho %>%
 Abaixo, plotamos o gráfico com a importância de cada variável para esse modelo de floresta aleatória:
 
 ```{r}
-vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", data = dados), aesthetics = list(fill = "lightblue")) + labs(title = "Floresta Aleatoria")
+vip(ranger(will_close ~ ., probability = TRUE, importance = "permutation", data = dados), aesthetics = list(fill = "lightblue")) + labs(title = "Floresta Aleatória")
 ```
 
 Agora, vamos iterar para testar o número de árvores de 1 a 500, bem como o número de variáveis por split, plotar o resultado dessa iteração:
@@ -359,7 +371,7 @@ teste_stepwise  <- subset(teste, select = lista_var)
 
 Agora será estimado o modelo de regressão logística com stepwise:
 ```{r}
-log_stepwise <- glm(will_close ~ ., data = treino_stepwise, family = "binomial")
+log_stepwise <- suppressWarnings({glm(will_close ~ ., data = treino_stepwise, family = "binomial")})
 summary(log_stepwise)
 ```
 
@@ -401,7 +413,7 @@ ls <- Q3 + 1.5 * IQR
 dados_sem_outliers <- subset(dados, sales_x <= ls)
 ```
 
-A etapa seguinte é criar os datasets de treinamento e teste, onde 80% do dataset será de treinamento:
+A etapa seguinte é criar os datasets de treinamento sem outliers, onde 80% do dataset sem outliers será de treinamento:
 
 ```{r}
 idx_sem_outliers <- sample(nrow(dados_sem_outliers), size = .80 * nrow(dados_sem_outliers), replace = FALSE)
@@ -413,7 +425,7 @@ treino_sem_outliers <- dados_sem_outliers[idx_sem_outliers,]
 
 O primeiro modelo a ser estimado sem os outliers é o de regressão logística:
 ```{r}
-log_sem_outliers <- glm(will_close ~ ., data = treino_sem_outliers, family = 'binomial')
+log_sem_outliers <- suppressWarnings({glm(will_close ~ ., data = treino_sem_outliers, family = 'binomial')})
 summary(log_sem_outliers)
 ```
 
